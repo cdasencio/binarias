@@ -2,77 +2,66 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>TRADER PRO PANEL</title>
+<title>BLITZ PRO PANEL</title>
 
 <style>
 body{
   margin:0;
-  font-family:Arial;
   background:#0b1220;
-  color:#fff;
+  font-family:Arial;
+  color:white;
 }
 
-/* GRID */
 .container{
   display:grid;
-  grid-template-rows: 65vh 55vh 15vh;
+  grid-template-rows: 70vh 30vh;
   gap:8px;
   padding:8px;
 }
 
-/* BLOQUES */
 .card{
   background:#111827;
   border-radius:10px;
-  position:relative;
   overflow:hidden;
 }
 
-/* SCROLL */
 .scroll{
   width:100%;
   height:100%;
   overflow:auto;
 }
 
-/* IFRAME GRANDE */
 .frame{
-  width:2200px;
-  height:1300px;
+  width:2000px;
+  height:1200px;
   border:none;
 }
 
-/* SEÑAL */
-#signal{
-  display:flex;
-  justify-content:center;
+.panel{
+  display:grid;
+  grid-template-columns: repeat(4,1fr);
   align-items:center;
-  font-size:42px;
-  font-weight:bold;
+  text-align:center;
 }
 
-/* COLORES */
 .buy{color:#22c55e;}
 .sell{color:#ef4444;}
 .wait{color:#facc15;}
-
-/* OVERLAY */
-.overlay{
-  position:absolute;
-  top:10px;
-  left:10px;
-  background:#0009;
-  padding:8px 12px;
-  border-radius:8px;
-}
+.ready{color:#60a5fa;}
 
 .timer{
-  position:absolute;
-  top:10px;
-  right:10px;
-  background:#0009;
-  padding:8px 12px;
-  border-radius:8px;
+  font-size:50px;
+  font-weight:bold;
+}
+
+h2{margin:5px 0;}
+
+select{
+  padding:6px;
+  border-radius:6px;
+  background:#0b1220;
+  color:white;
+  border:1px solid #333;
 }
 </style>
 
@@ -82,74 +71,149 @@ body{
 
 <div class="container">
 
-<!-- TRADINGVIEW -->
-<div class="card">
-  <div class="overlay" id="overlay">NO OPERAR</div>
-  <div class="timer" id="timer">60</div>
-
-  <div class="scroll">
-    <iframe 
-      src="https://www.tradingview.com/widgetembed/?symbol=FX:EURUSD&interval=1&theme=dark"
-      class="frame">
-    </iframe>
-  </div>
-</div>
-
-<!-- IQ OPTION -->
+<!-- BROKER / CHART -->
 <div class="card">
   <div class="scroll">
-    <iframe 
-      src="https://iqoption.com"
-      class="frame">
-    </iframe>
+    <iframe src="https://iqoption.com" class="frame"></iframe>
   </div>
 </div>
 
 <!-- PANEL -->
-<div class="card" id="signal">
-  NO OPERAR
+<div class="card panel">
+
+  <div>
+    <h2>PAR</h2>
+    <select id="pair">
+      <option>EURUSD</option>
+      <option>GBPUSD</option>
+      <option>USDJPY</option>
+      <option>GBPJPY</option>
+      <option>AUDJPY</option>
+      <option>AUDCAD</option>
+      <option>GBPCAD</option>
+      <option>EURGBP</option>
+      <option>EURAUD</option>
+    </select>
+  </div>
+
+  <div>
+    <h2>SEÑAL</h2>
+    <div id="signal" class="wait">ESPERANDO</div>
+  </div>
+
+  <div>
+    <h2>ENTRADA</h2>
+    <div id="entry">--</div>
+  </div>
+
+  <div>
+    <h2>TIEMPO</h2>
+    <div class="timer" id="timer">60</div>
+  </div>
+
 </div>
 
 </div>
 
 <script>
 
-// ⏱ TIMER
-let t = 60;
+let tiempo = 60;
 
-// 🔌 SIMULACIÓN (luego se conecta a backend real)
-function generarSenal(){
-  let r = Math.random();
+// señal estructurada (AHORA con confirmaciones)
+let señal = null;
 
-  let signal="NO OPERAR";
-  let clase="wait";
-
-  if(r > 0.7){
-    signal="SUBE ⬆";
-    clase="buy";
-  }
-  else if(r < 0.3){
-    signal="BAJA ⬇";
-    clase="sell";
-  }
-
-  document.getElementById("signal").innerText = signal;
-  document.getElementById("signal").className = "card " + clase;
-
-  document.getElementById("overlay").innerText = signal;
-  document.getElementById("overlay").className = "overlay " + clase;
+// limpiar símbolo
+function limpiar(asset){
+  return asset.replace("FX:","").replace("/","");
 }
 
-// ⏱ LOOP
-setInterval(()=>{
-  t--;
+// obtener señal backend (MEJORADA)
+async function getSignal(){
+  try{
+    let r = await fetch("http://localhost:3000/senal");
+    let d = await r.json();
 
-  if(t <= 0){
-    t = 60;
-    generarSenal();
+    if(d.signal){
+      señal = {
+        asset: limpiar(d.asset),
+
+        // dirección principal
+        signal: d.signal, // BUY / SELL
+
+        // 🔥 confirmaciones obligatorias
+        trendM5: d.trendM5,   // "UP" / "DOWN"
+        utbot: d.utbot,       // "BUY" / "SELL"
+        ema50: d.ema50        // "BUY" / "SELL"
+      };
+    }
+
+  }catch(e){}
+}
+
+setInterval(getSignal,1000);
+
+// 🔥 lógica PRO (TRIPLE CONFIRMACIÓN)
+function actualizar(){
+
+  let pair = document.getElementById("pair").value;
+
+  let txt = "NO OPERAR";
+  let clase = "wait";
+  let entry = "Esperando señal";
+
+  if(señal && señal.asset === pair){
+
+    let dir = señal.signal;
+
+    let okTrend =
+      (dir === "BUY" && señal.trendM5 === "UP") ||
+      (dir === "SELL" && señal.trendM5 === "DOWN");
+
+    let okUT = señal.utbot === dir;
+    let okEMA = señal.ema50 === dir;
+
+    let confirmacion = okTrend && okUT && okEMA;
+
+    if(tiempo <= 8 && confirmacion){
+
+      if(dir === "BUY"){
+        txt = "SUBE ⬆ CONFIRMADO";
+        clase = "buy";
+      }
+
+      if(dir === "SELL"){
+        txt = "BAJA ⬇ CONFIRMADO";
+        clase = "sell";
+      }
+
+      entry = "ENTRAR YA";
+
+    } else if(confirmacion){
+
+      txt = "PREPARADO ✔";
+      clase = "ready";
+      entry = "Esperar vela";
+
+    } else {
+      txt = "FILTRANDO...";
+      clase = "wait";
+      entry = "Sin confirmación";
+    }
   }
 
-  document.getElementById("timer").innerText = t;
+  document.getElementById("signal").innerText = txt;
+  document.getElementById("signal").className = clase;
+  document.getElementById("entry").innerText = entry;
+}
+
+// timer
+setInterval(()=>{
+  tiempo--;
+  if(tiempo <= 0) tiempo = 60;
+
+  document.getElementById("timer").innerText = tiempo;
+
+  actualizar();
 
 },1000);
 
