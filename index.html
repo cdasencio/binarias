@@ -71,7 +71,7 @@ select{
 
 <div class="container">
 
-<!-- BROKER / CHART -->
+<!-- CHART / BROKER -->
 <div class="card">
   <div class="scroll">
     <iframe src="https://iqoption.com" class="frame"></iframe>
@@ -118,32 +118,30 @@ select{
 <script>
 
 let tiempo = 60;
-
-// señal estructurada (AHORA con confirmaciones)
 let señal = null;
 
-// limpiar símbolo
+// normalizador
 function limpiar(asset){
-  return asset.replace("FX:","").replace("/","");
+  return (asset || "")
+    .toUpperCase()
+    .replace("FX:","")
+    .replace("/","");
 }
 
-// obtener señal backend (MEJORADA)
+// fetch señal inteligente
 async function getSignal(){
   try{
     let r = await fetch("http://localhost:3000/senal");
     let d = await r.json();
 
-    if(d.signal){
+    if(d){
       señal = {
         asset: limpiar(d.asset),
-
-        // dirección principal
-        signal: d.signal, // BUY / SELL
-
-        // 🔥 confirmaciones obligatorias
-        trendM5: d.trendM5,   // "UP" / "DOWN"
-        utbot: d.utbot,       // "BUY" / "SELL"
-        ema50: d.ema50        // "BUY" / "SELL"
+        signal: (d.signal || "").toUpperCase(),
+        trendM5: (d.trendM5 || "").toUpperCase(),
+        utbot: (d.utbot || "").toUpperCase(),
+        ema50: (d.ema50 || "").toUpperCase(),
+        score: d.score ?? null
       };
     }
 
@@ -152,53 +150,63 @@ async function getSignal(){
 
 setInterval(getSignal,1000);
 
-// 🔥 lógica PRO (TRIPLE CONFIRMACIÓN)
+// motor frontend (solo interpretación visual)
 function actualizar(){
 
   let pair = document.getElementById("pair").value;
 
-  let txt = "NO OPERAR";
-  let clase = "wait";
-  let entry = "Esperando señal";
+  let txt="NO OPERAR";
+  let clase="wait";
+  let entry="Esperando señal";
 
   if(señal && señal.asset === pair){
 
     let dir = señal.signal;
+    let score = señal.score;
 
-    let okTrend =
-      (dir === "BUY" && señal.trendM5 === "UP") ||
-      (dir === "SELL" && señal.trendM5 === "DOWN");
+    // fallback si backend NO manda score
+    if(score === null){
 
-    let okUT = señal.utbot === dir;
-    let okEMA = señal.ema50 === dir;
+      let trend = señal.trendM5;
+      let utbot = señal.utbot;
+      let ema = señal.ema50;
 
-    let confirmacion = okTrend && okUT && okEMA;
+      score = 0;
 
-    if(tiempo <= 8 && confirmacion){
+      if(dir === "BUY" && trend === "UP") score += 35;
+      if(dir === "SELL" && trend === "DOWN") score += 35;
 
-      if(dir === "BUY"){
-        txt = "SUBE ⬆ CONFIRMADO";
-        clase = "buy";
-      }
+      if(utbot === dir) score += 25;
+      if(ema === dir) score += 25;
+    }
 
-      if(dir === "SELL"){
-        txt = "BAJA ⬇ CONFIRMADO";
-        clase = "sell";
-      }
+    let valido = score >= 70;
+    let enVentana = tiempo <= 8 && tiempo >= 2;
 
-      entry = "ENTRAR YA";
+    if(valido && enVentana){
 
-    } else if(confirmacion){
+      txt = (dir === "BUY")
+        ? "SUBE ⬆ CONFIRMADO"
+        : "BAJA ⬇ CONFIRMADO";
 
-      txt = "PREPARADO ✔";
+      clase = (dir === "BUY") ? "buy" : "sell";
+      entry = "ENTRADA ACTIVA";
+
+    }
+    else if(valido){
+
+      txt = "PREPARADO ✔ ("+Math.floor(score)+"%)";
       clase = "ready";
       entry = "Esperar vela";
 
-    } else {
-      txt = "FILTRANDO...";
-      clase = "wait";
-      entry = "Sin confirmación";
     }
+    else{
+
+      txt = "SIN SETUP ("+Math.floor(score || 0)+"%)";
+      clase = "wait";
+      entry = "Mercado débil";
+    }
+
   }
 
   document.getElementById("signal").innerText = txt;
@@ -206,8 +214,9 @@ function actualizar(){
   document.getElementById("entry").innerText = entry;
 }
 
-// timer
+// timer real
 setInterval(()=>{
+
   tiempo--;
   if(tiempo <= 0) tiempo = 60;
 
