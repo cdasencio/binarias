@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>TRADER PRO PANEL</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0b1220;
+  color:#fff;
+}
+
+/* GRID */
+.container{
+  display:grid;
+  grid-template-rows: 65vh 55vh 15vh;
+  gap:8px;
+  padding:8px;
+}
+
+/* BLOQUES */
+.card{
+  background:#111827;
+  border-radius:10px;
+  position:relative;
+  overflow:hidden;
+}
+
+/* SCROLL */
+.scroll{
+  width:100%;
+  height:100%;
+  overflow:auto;
+}
+
+/* IFRAME GRANDE */
+.frame{
+  width:2200px;
+  height:1300px;
+  border:none;
+}
+
+/* SEÑAL */
+#signal{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:42px;
+  font-weight:bold;
+}
+
+/* COLORES */
+.buy{color:#22c55e;}
+.sell{color:#ef4444;}
+.wait{color:#facc15;}
+
+/* OVERLAY */
+.overlay{
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:#0009;
+  padding:8px 12px;
+  border-radius:8px;
+}
+
+.timer{
+  position:absolute;
+  top:10px;
+  right:10px;
+  background:#0009;
+  padding:8px 12px;
+  border-radius:8px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<!-- TRADINGVIEW -->
+<div class="card">
+  <div class="overlay" id="overlay">NO OPERAR</div>
+  <div class="timer" id="timer">60</div>
+
+  <div class="scroll">
+    <iframe 
+      src="https://www.tradingview.com/widgetembed/?symbol=FX:EURUSD&interval=1&theme=dark"
+      class="frame">
+    </iframe>
+  </div>
+</div>
+
+<!-- IQ OPTION -->
+<div class="card">
+  <div class="scroll">
+    <iframe 
+      src="https://iqoption.com"
+      class="frame">
+    </iframe>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="card" id="signal">
+  NO OPERAR
+</div>
+
+</div>
+
+<script>
+
+// ⏱ TIMER
+let t = 60;
+
+// 🔌 SIMULACIÓN (luego se conecta a backend real)
+function generarSenal(){
+  let r = Math.random();
+
+  let signal="NO OPERAR";
+  let clase="wait";
+
+  if(r > 0.7){
+    signal="SUBE ⬆";
+    clase="buy";
+  }
+  else if(r < 0.3){
+    signal="BAJA ⬇";
+    clase="sell";
+  }
+
+  document.getElementById("signal").innerText = signal;
+  document.getElementById("signal").className = "card " + clase;
+
+  document.getElementById("overlay").innerText = signal;
+  document.getElementById("overlay").className = "overlay " + clase;
+}
+
+// ⏱ LOOP
+setInterval(()=>{
+  t--;
+
+  if(t <= 0){
+    t = 60;
+    generarSenal();
+  }
+
+  document.getElementById("timer").innerText = t;
+
+},1000);
+
+</script>
+
+</body>
+</html>
